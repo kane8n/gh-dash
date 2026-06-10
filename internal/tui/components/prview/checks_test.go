@@ -169,11 +169,7 @@ func makeCheckSuite(workflowName string, status string, conclusion string) data.
 	return data.CheckSuiteNode{
 		Status:     graphql.String(status),
 		Conclusion: graphql.String(conclusion),
-		WorkflowRun: struct {
-			Workflow struct {
-				Name graphql.String
-			}
-		}{
+		WorkflowRun: &data.CheckSuiteWorkflowRun{
 			Workflow: struct {
 				Name graphql.String
 			}{
@@ -181,6 +177,16 @@ func makeCheckSuite(workflowName string, status string, conclusion string) data.
 			},
 		},
 	}
+}
+
+// makeAppCheckSuite builds a check suite created by an app installation,
+// which has no associated workflow run.
+func makeAppCheckSuite(appName string, status string) data.CheckSuiteNode {
+	suite := data.CheckSuiteNode{
+		Status: graphql.String(status),
+	}
+	suite.App.Name = graphql.String(appName)
+	return suite
 }
 
 func TestRenderChecks_AwaitingApproval(t *testing.T) {
@@ -250,6 +256,35 @@ func TestRenderChecks_PendingCheckSuites(t *testing.T) {
 	// Should show waiting icon
 	require.True(t, strings.Contains(got, constants.WaitingIcon),
 		"expected WaitingIcon, got: %q", got)
+}
+
+func TestRenderChecks_IgnoresEmptyAppCheckSuites(t *testing.T) {
+	// Check suites without a workflow run come from apps installed on the
+	// repository and may stay QUEUED forever; they should not be shown as
+	// pending
+	opts := checksTestOptions{
+		checkSuites: data.CheckSuites{
+			TotalCount: 2,
+			Nodes: []data.CheckSuiteNode{
+				makeAppCheckSuite("codecov", "QUEUED"),
+				makeAppCheckSuite("renovate", "QUEUED"),
+			},
+		},
+		checkRuns: []data.CheckRun{
+			makeCheckRun("lint", "COMPLETED", "SUCCESS"),
+		},
+		rollupState: "SUCCESS",
+	}
+
+	m := newTestModelForChecks(t, opts)
+	got := m.renderChecks()
+
+	require.False(t, strings.Contains(got, "Pending"),
+		"expected no 'Pending' section for empty app check suites, got: %q", got)
+	require.False(t, strings.Contains(got, "codecov"),
+		"expected app check suite not to be listed, got: %q", got)
+	require.False(t, strings.Contains(got, constants.WaitingIcon),
+		"expected no WaitingIcon for empty app check suites, got: %q", got)
 }
 
 func TestRenderChecks_RequiredButNotReported(t *testing.T) {
@@ -475,6 +510,34 @@ func TestGetChecksStats_PendingCheckSuites(t *testing.T) {
 
 	require.Equal(t, 2, stats.inProgress,
 		"expected 2 in progress (from pending check suites), got: %d", stats.inProgress)
+}
+
+func TestGetChecksStats_IgnoresEmptyAppCheckSuites(t *testing.T) {
+	// Check suites without a workflow run come from apps installed on the
+	// repository and may stay QUEUED forever; they should not count as
+	// inProgress
+	opts := checksTestOptions{
+		checkSuites: data.CheckSuites{
+			TotalCount: 3,
+			Nodes: []data.CheckSuiteNode{
+				makeAppCheckSuite("codecov", "QUEUED"),
+				makeAppCheckSuite("sonarqubecloud", "QUEUED"),
+				makeCheckSuite("Build", "QUEUED", ""),
+			},
+		},
+		checkRuns: []data.CheckRun{
+			makeCheckRun("lint", "COMPLETED", "SUCCESS"),
+		},
+		rollupState: "SUCCESS",
+	}
+
+	m := newTestModelForChecks(t, opts)
+	stats := m.getChecksStats()
+
+	require.Equal(t, 1, stats.inProgress,
+		"expected only the workflow check suite to count as in progress, got: %d", stats.inProgress)
+	require.Equal(t, 1, stats.succeeded,
+		"expected 1 succeeded, got: %d", stats.succeeded)
 }
 
 func TestGetChecksStats_Mixed(t *testing.T) {

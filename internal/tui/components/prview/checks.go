@@ -444,7 +444,10 @@ func (sidebar *Model) renderChecks() string {
 
 	// Collect check suites that don't appear in statusCheckRollup
 	for _, suite := range lastCommit.Commit.CheckSuites.Nodes {
-		workflowName := strings.TrimSpace(string(suite.WorkflowRun.Workflow.Name))
+		workflowName := ""
+		if suite.WorkflowRun != nil {
+			workflowName = strings.TrimSpace(string(suite.WorkflowRun.Workflow.Name))
+		}
 		if workflowName == "" {
 			workflowName = strings.TrimSpace(string(suite.App.Name))
 		}
@@ -461,7 +464,8 @@ func (sidebar *Model) renderChecks() string {
 				workflowName,
 			)
 			awaitingApproval = append(awaitingApproval, check)
-		} else if suite.Status == "QUEUED" || suite.Status == "PENDING" || suite.Status == "WAITING" {
+		} else if suite.WorkflowRun != nil &&
+			(suite.Status == "QUEUED" || suite.Status == "PENDING" || suite.Status == "WAITING") {
 			// Workflow is queued/pending (will run automatically)
 			check := lipgloss.JoinHorizontal(
 				lipgloss.Top,
@@ -643,11 +647,15 @@ func (m *Model) getChecksStats() checksStats {
 		}
 	}
 
-	// Count check suites that don't appear in statusCheckRollup
+	// Count check suites that don't appear in statusCheckRollup. Suites
+	// without a workflow run are excluded: apps installed on the repository
+	// get an empty check suite per commit, and if the app never reports
+	// check runs the suite stays QUEUED forever.
 	for _, suite := range lastCommit.Commit.CheckSuites.Nodes {
 		if suite.Conclusion == "ACTION_REQUIRED" {
 			res.awaitingApproval++
-		} else if suite.Status == "QUEUED" || suite.Status == "PENDING" || suite.Status == "WAITING" {
+		} else if suite.WorkflowRun != nil &&
+			(suite.Status == "QUEUED" || suite.Status == "PENDING" || suite.Status == "WAITING") {
 			res.inProgress++
 		}
 	}

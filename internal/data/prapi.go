@@ -134,6 +134,12 @@ type StatusContext struct {
 	}
 }
 
+type CheckSuiteWorkflowRun struct {
+	Workflow struct {
+		Name graphql.String
+	}
+}
+
 type CheckSuiteNode struct {
 	Status     graphql.String
 	Conclusion graphql.String
@@ -142,11 +148,10 @@ type CheckSuiteNode struct {
 		Name graphql.String
 	}
 
-	WorkflowRun struct {
-		Workflow struct {
-			Name graphql.String
-		}
-	}
+	// WorkflowRun is null for check suites that don't belong to a GitHub
+	// Actions workflow run, e.g. the empty suites GitHub auto-creates for
+	// every app installed on the repository.
+	WorkflowRun *CheckSuiteWorkflowRun
 }
 
 type CheckSuites struct {
