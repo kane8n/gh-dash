@@ -239,9 +239,13 @@ func init() {
 
 		zone.NewGlobal()
 
+		var ghRepoPtr *repository.Repository
+		if ghRepo != (repository.Repository{}) {
+			ghRepoPtr = &ghRepo
+		}
 		model := tui.NewModel(
 			config.Location{RepoPath: gitRepoPath, ConfigFlag: cfgFlag},
-			tui.Repositories{GitRepo: gitRepo, GHRepo: &ghRepo},
+			tui.Repositories{GitRepo: gitRepo, GHRepo: ghRepoPtr},
 		)
 
 		cpuprofile, err := rootCmd.Flags().GetString("cpuprofile")
