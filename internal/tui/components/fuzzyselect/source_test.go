@@ -228,6 +228,15 @@ func TestUserMentionSource(t *testing.T) {
 		source.ExtractContext("hello @octo"+string('\n'), tea.Position{Y: 1, X: 0}),
 	)
 
+	// Regression: cursor sits right before a trailing boundary char, with another
+	// boundary char right before the cursor too. userStart could end up past
+	// userEnd, panicking on the runes[userStart:userEnd] slice (see #877).
+	require.Equal(
+		t,
+		Context{},
+		source.ExtractContext("  ", tea.Position{X: 1}),
+	)
+
 	newInput, newCursor := source.InsertSuggestion(
 		"hello @oc",
 		"octo",
